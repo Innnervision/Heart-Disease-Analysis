@@ -1,0 +1,124 @@
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+import tkinter as tk
+from tkinter import ttk
+from tkinter import messagebox
+from PIL import Image, ImageTk
+import matplotlib.pyplot as plt
+
+# Load and preprocess the dataset
+def load_data():
+    url = "https://archive.ics.uci.edu/ml/machine-learning-databases/heart-disease/processed.cleveland.data"
+    col_names = [
+        'age', 'sex', 'cp', 'trestbps', 'chol', 'fbs', 'restecg', 'thalach', 'exang', 
+        'oldpeak', 'slope', 'ca', 'thal', 'target'
+    ]
+    data = pd.read_csv(url, names=col_names)
+    data = data.replace('?', pd.NA).dropna().astype(float)
+    return data
+
+def preprocess_data(data):
+    X = data.drop('target', axis=1)
+    y = data['target'].apply(lambda x: 1 if x > 0 else 0)  # Binary classification: 1 for heart disease, 0 for no disease
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+    
+    return X_train, X_test, y_train, y_test, scaler
+
+# Train the model
+def train_model():
+    data = load_data()
+    X_train, X_test, y_train, y_test, scaler = preprocess_data(data)
+
+    model = RandomForestClassifier(random_state=42)
+    model.fit(X_train, y_train)
+    
+    y_pred = model.predict(X_test)
+    report = classification_report(y_test, y_pred, output_dict=True)
+    
+    return model, scaler, report
+
+# Predict heart disease
+def predict_heart_disease(features, model, scaler):
+    features_scaled = scaler.transform([features])
+    prediction = model.predict(features_scaled)
+    prediction_proba = model.predict_proba(features_scaled)
+    return prediction[0], prediction_proba[0]
+
+# Create the GUI
+def show_result(entries, model, scaler):
+    try:
+        features = [
+            float(entries["age"].get()), 
+            int(entries["sex"].get()), 
+            int(entries["cp"].get()), 
+            float(entries["trestbps"].get()), 
+            float(entries["chol"].get()), 
+            int(entries["fbs"].get()), 
+            int(entries["restecg"].get()), 
+            float(entries["thalach"].get()), 
+            int(entries["exang"].get()), 
+            float(entries["oldpeak"].get()), 
+            int(entries["slope"].get()), 
+            int(entries["ca"].get()), 
+            int(entries["thal"].get())
+        ]
+        prediction, proba = predict_heart_disease(features, model, scaler)
+        result = "Heart Disease" if prediction == 1 else "No Heart Disease"
+        proba_text = f"Probability: No Heart Disease: {proba[0]:.2f}, Heart Disease: {proba[1]:.2f}"
+        messagebox.showinfo("Prediction Result", f"Prediction: {result}\n{proba_text}")
+    except ValueError:
+        messagebox.showerror("Input Error", "Please enter valid inputs.")
+
+# Main function to create the GUI and integrate the model
+def main():
+    model, scaler, report = train_model()
+
+    # Create main window
+    root = tk.Tk()
+    root.title("Heart Disease Prediction App")
+
+    # Create input fields
+    fields = [
+        ("Age", "age"), 
+        ("Sex (1=Male, 0=Female)", "sex"), 
+        ("Chest Pain Type (0-3)", "cp"), 
+        ("Resting Blood Pressure", "trestbps"), 
+        ("Serum Cholesterol", "chol"), 
+        ("Fasting Blood Sugar > 120 mg/dl (1=True, 0=False)", "fbs"), 
+        ("Resting ECG Results (0-2)", "restecg"), 
+        ("Max Heart Rate Achieved", "thalach"), 
+        ("Exercise Induced Angina (1=True, 0=False)", "exang"), 
+        ("ST Depression Induced by Exercise", "oldpeak"), 
+        ("Slope of Peak Exercise ST Segment (0-2)", "slope"), 
+        ("Number of Major Vessels Colored by Fluoroscopy (0-3)", "ca"), 
+        ("Thalassemia (1=Normal, 2=Fixed Defect, 3=Reversable Defect)", "thal")
+    ]
+
+    entries = {}
+
+    for field, var_name in fields:
+        row = ttk.Frame(root)
+        label = ttk.Label(row, text=field, width=40, anchor='w')
+        entry = ttk.Entry(row)
+        row.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+        label.pack(side=tk.LEFT)
+        entry.pack(side=tk.RIGHT, expand=tk.YES, fill=tk.X)
+        entries[var_name] = entry
+
+    # Create predict button
+    predict_button = ttk.Button(root, text="Predict", command=lambda: show_result(entries, model, scaler))
+    predict_button.pack(side=tk.TOP, pady=20)
+
+    root.mainloop()
+
+if __name__ == "__main__":
+    main()
